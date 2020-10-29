@@ -55,6 +55,7 @@ def on_file_piece_uploading(client: (socket.socket, (str, int)),data:bytes):
     # 若得到的是wrq
     if packet_code==PACKET_CODE["write"]:
         file_name_length ,= struct.unpack("=H",data[2:4])
+        print("[length]",len(data[4:]))
         filename,= struct.unpack(f"{file_name_length}s",data[4:])
         filename = filename.decode("utf8")
         GUEST_UPLOADING[addr] = filename
@@ -108,9 +109,20 @@ def download(client: (socket.socket, (str, int)), filename: str):
     guest_del(addr)
     pass
 
-def list_files(client: (socket.socket, (str, int)), filename: str):
-    pass
-
+def list_files(client: (socket.socket, (str, int))):
+    sock,addr = client
+    sock.sendto(_build_ack_packet(0),addr)
+    info = "\n".join([f"{i.name}  {i.stat().st_size}" for i in os.scandir(FILE_DIR)])
+    data = info.encode("utf8")
+    part = data[:506]
+    id =1
+    # 默认非满506 为结尾
+    while True:
+        if len(part)==506:
+            sock.sendto(_build_data_packet(id,part),addr)
+        else:
+            sock.sendto(_build_data_packet(id, part), addr)
+            break
 PACKET_CODE ={
     "write":1,
     "read":2,
@@ -180,9 +192,12 @@ class MyUdpHandler(socketserver.BaseRequestHandler):
             print("[ACKED] %d"%id)
         if packet_code == PACKET_CODE["write"] or packet_code == PACKET_CODE["data"]:
             on_file_piece_uploading((sock,self.client_address),data)
+        if packet_code == PACKET_CODE["list"]:
+            print("[DEBUG] LIST")
+            list_files((sock,self.client_address))
         # except Exception as e:
         #     err_hook((sock,self.client_address),e)
 
 if __name__ == '__main__':
     server = socketserver.ThreadingUDPServer(('127.0.0.1', 8081), MyUdpHandler)
-    server.serve_forever()
+    server.serve_forever(poll_interval=0.01)

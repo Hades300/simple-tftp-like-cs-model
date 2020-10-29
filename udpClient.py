@@ -20,10 +20,13 @@ CMD_CODE = {
 
 
 def _build_rrq_packet(filename:str):
-    return struct.pack("1H1H%ds"%(len(filename)),PACKET_CODE["read"],len(filename.encode("utf8")),filename.encode("utf8"))
+    return struct.pack("1H1H%ds"%(len(filename.encode("utf8"))),PACKET_CODE["read"],len(filename.encode("utf8")),filename.encode("utf8"))
 
 def _build_wrq_packet(filename:str):
-    return struct.pack("1H1H%ds" % (len(filename)), PACKET_CODE["write"], len(filename.encode("utf8")), filename.encode("utf8"))
+    return struct.pack("1H1H%ds" % (len(filename.encode("utf8"))), PACKET_CODE["write"], len(filename.encode("utf8")), filename.encode("utf8"))
+
+def _build_lrq_packet():
+    return struct.pack("1H",PACKET_CODE["list"])
 
 def _build_ack_packet(id:int):
     return struct.pack("=1H1I",PACKET_CODE["ack"],id)
@@ -67,6 +70,7 @@ def upload(c:socket,*args):
         raise Exception("参数长度不对劲")
     filename = args[0]
     serverfilename = args[1]
+    print("[DEBUG] SERVERNAME",serverfilename)
     c.send(_build_wrq_packet(serverfilename))
     data = c.recv(512)
     packet_code, = struct.unpack("1H", data[:2])
@@ -105,6 +109,23 @@ def upload(c:socket,*args):
     print(f"[+] {filename} uploaded")
     pass
 
+def get_list(c:socket):
+    c.send(_build_lrq_packet())
+    data = c.recv(512)
+    packet_code, = struct.unpack("1H", data[:2])
+    if packet_code != (PACKET_CODE["ack"]):
+        raise Exception("查看文件列表请求未接受到对应ACK,接收到：", data.decode("utf8"))
+    content = b""
+    while True:
+        data = c.recv(512)
+        packet_code, = struct.unpack("1H", data[:2])
+        if packet_code != (PACKET_CODE["data"]):
+            raise Exception("期待一个data包,收到", data.decode("utf8"))
+        content+=data[6:]
+        if (len(data[6:])) != 506:
+            break
+    print("[+] File List ⤵️")
+    print(content.decode("utf8"))
 
 def get_input():
     text = input("Hades300 >> :").split()
@@ -117,7 +138,6 @@ def connect(addr):
     c = socket(AF_INET,SOCK_DGRAM)
     c.connect(addr)
     cmd = get_input()
-    print("[DEBUG]",cmd)
     if len(cmd)==1 and cmd[0].lower()=="exit":
         print("[+] Exiting... Bye~")
         c.close()
@@ -127,10 +147,13 @@ def connect(addr):
     if cmd[0].lower() == "write":
         print("[+] Uploading...")
         upload(c,*cmd[1:])
+    if cmd[0].lower()=="list":
+        get_list(c)
 
 
 if __name__=="__main__":
     addr = ("localhost",8081)
-    connect(addr)
+    while True:
+        connect(addr)
 
 
