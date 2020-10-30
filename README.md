@@ -1,5 +1,19 @@
 # TFTP-Like File Transfer Tool(python implemented)
 
+## 使用
+```bash
+python3 udpClient.py
+```
+```
+list
+```
+```
+read [remote-file-name] [local-file-name]
+```
+```
+write [local-file-name] [remote-file-name]
+```
+
 ## 设计考虑
 
 ### 最长数据报长度
@@ -27,6 +41,14 @@
 - 限制传输速度的因素
     - 单个包大小，有待测试的是 不考虑最小分片下的局域网从传输 将512调至 1472 =（1500-20-8）
     - 夸张一点，不考虑分片，8164 =（8192-20-8） （选 8192是因为大部分系统都默认提供了可读写大于 8192 字节的 UDP 数据报。
+
+### 测试
+局域网
+- MTU = 512       Speed = 1066 Kib/s
+- MTU = 1500-20-8 Speed = 3153 Kib/s
+- MTU = 8192-20-8 Speed = 17785 Kib/s
+
+公网 待测试
 
 ### 设计
 可以自行设计

@@ -1,7 +1,13 @@
 import queue
-from _socket import *
 import time
+from _socket import *
+import os
 import threading, struct
+
+# max transfer? unit
+MTU = 8192-20-8
+# max data length
+MDL = MTU -6
 
 PACKET_CODE = {
     "write": 1,
@@ -54,22 +60,26 @@ def download(c: socket, *args):
     filename = args[0]
     localfilename = args[1]
     c.send(_build_rrq_packet(filename))
-    data = c.recv(512)
+    data = c.recv(MTU)
     packet_code, = struct.unpack("1H", data[:2])
     if packet_code != (PACKET_CODE["ack"]):
         raise Exception("下载请求未接受到对应ACK,接收到：", data.decode("utf8"))
+    file_length = 0
+    start_time = time.time()
     with open(localfilename, "wb") as f:
         while True:
-            data = c.recv(512)
+            data = c.recv(MTU)
             packet_code, = struct.unpack("1H", data[:2])
             if packet_code != (PACKET_CODE["data"]):
                 raise Exception("期待一个data包,收到", data.decode("utf8"))
             id, = struct.unpack("=1I", data[2:6])
+            file_length+=len(data[6:])
             f.write(data[6:])
             c.send(_build_ack_packet(id))
-            if (len(data[6:])) != 506:
+            if (len(data[6:])) != MDL:
                 break
-    print(f"[+] File {filename} Downloaded")
+    end_time = time.time()
+    print(f"[+] File {filename} Downloaded ,Speed :{file_length/(end_time-start_time)/1024} Kib/s")
 
 
 def upload(c: socket, *args):
@@ -79,16 +89,21 @@ def upload(c: socket, *args):
     serverfilename = args[1]
     print("[DEBUG] SERVERNAME", serverfilename)
     c.send(_build_wrq_packet(serverfilename))
-    data = c.recv(512)
+    data = c.recv(MTU)
     packet_code, = struct.unpack("1H", data[:2])
     if packet_code != (PACKET_CODE["ack"]):
         raise Exception("下载请求未接受到对应ACK,接收到：", data.decode("utf8"))
+    if not os.path.exists(filename):
+        raise Exception(f"文件{filename}不存在")
+    file_length = 0
+    start_time = time.time()
     with open(filename, "rb") as f:
         id = 1
         while True:
             # 先不考虑最后一部分就刚好是506的情况
-            content = f.read(506)
-            if len(content) < 506:
+            content = f.read(MDL)
+            file_length+=len(content)
+            if len(content) < MDL:
                 # file end
                 packet = _build_data_packet(id, content)
                 c.send(packet)
@@ -104,7 +119,7 @@ def upload(c: socket, *args):
 
                     t = threading.Timer(1, function=warn)
                     t.start()
-                    data = c.recv(512)
+                    data = c.recv(MTU)
                     packet_code, = struct.unpack("H", data[:2])
                     if packet_code == PACKET_CODE["ack"]:
                         t.cancel()
@@ -114,24 +129,25 @@ def upload(c: socket, *args):
                     # 超时重传
                     # c.send(packet)
                 id += 1
-    print(f"[+] {filename} uploaded")
+    end_time = time.time()
+    print(f"[+] {filename} uploaded , Speed {file_length/(end_time-start_time)/1024} Kib/s")
     pass
 
 
 def get_list(c: socket):
     c.send(_build_lrq_packet())
-    data = c.recv(512)
+    data = c.recv(MTU)
     packet_code, = struct.unpack("1H", data[:2])
     if packet_code != (PACKET_CODE["ack"]):
         raise Exception("查看文件列表请求未接受到对应ACK,接收到：", data.decode("utf8"))
     content = b""
     while True:
-        data = c.recv(512)
+        data = c.recv(MTU)
         packet_code, = struct.unpack("1H", data[:2])
         if packet_code != (PACKET_CODE["data"]):
             raise Exception("期待一个data包,收到", data.decode("utf8"))
         content += data[6:]
-        if (len(data[6:])) != 506:
+        if (len(data[6:])) != MDL:
             break
     print("[+] File List ⤵️")
     print(content.decode("utf8"))

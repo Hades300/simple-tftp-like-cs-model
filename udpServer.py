@@ -1,8 +1,6 @@
 import socketserver
 import struct, threading
-import time
 import socket, queue
-import typing
 import os
 
 FILE_DIR = "Files"
@@ -13,7 +11,8 @@ GUEST_ACK = {}
 GUEST_UPLOADING = {}
 
 TIME_OUT = 2
-
+MTU = 8192-20-8
+MDL = MTU - 6
 
 def guest_add(host: (str, int)):
     GUEST_LIST.append(host)
@@ -74,7 +73,7 @@ def on_file_piece_uploading(client: (socket.socket, (str, int)), data: bytes):
     content = data[6:]
     filename = GUEST_UPLOADING[addr]
     filename = os.path.join(FILE_DIR,filename)
-    if len(content) != (512 - 6):
+    if len(content) != MDL:
         with open(filename, "ab") as f:
             f.write(content)
         print(f"[+] File {GUEST_UPLOADING[addr]} uploaded")
@@ -98,8 +97,8 @@ def download(client: (socket.socket, (str, int)), filename: str):
         id = 1
         while True:
             # 先不考虑最后一部分就刚好是506的情况
-            content = f.read(506)
-            if len(content) < 506:
+            content = f.read(MDL)
+            if len(content) < MDL:
                 # file end
                 packet = _build_data_packet(id, content)
                 sock.sendto(packet, addr)
@@ -122,11 +121,11 @@ def list_files(client: (socket.socket, (str, int))):
     sock.sendto(_build_ack_packet(0), addr)
     info = "\n".join([f"{i.name}  {i.stat().st_size}" for i in os.scandir(FILE_DIR)])
     data = info.encode("utf8")
-    part = data[:506]
+    part = data[:MDL]
     id = 1
     # 默认非满506 为结尾
     while True:
-        if len(part) == 506:
+        if len(part) == MDL:
             sock.sendto(_build_data_packet(id, part), addr)
         else:
             sock.sendto(_build_data_packet(id, part), addr)
@@ -150,7 +149,7 @@ CMD_CODE = {
 
 def err_hook(request: (socket.socket, (str, int)), e: Exception):
     sock, addr = request
-    sock.sendto(repr(e).encode("utf8"), addr)
+    sock.sendto(repr(e).encode("utf8"),addr)
 
 
 def _build_ack_packet(id: int):
@@ -164,7 +163,7 @@ def _build_data_packet(id: int, data: bytes):
 
 
 def _build_err_packet(e: Exception):
-    return _build_ack_packet(0, repr(e).encode("utf8"))
+    return _build_data_packet(0, repr(e).encode("utf8"))
 
 
 def init():
@@ -183,26 +182,26 @@ class MyUdpHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         data, sock = self.request
-        # try:
-        packet_code, = struct.unpack("H", data[:2])
-        if packet_code not in PACKET_CODE.values():
-            raise Exception("接受到代码  %s命令不存在" % (type(packet_code)), PACKET_CODE.values())
-        if packet_code == PACKET_CODE["read"]:
-            file_name_length, = struct.unpack("H", data[2:4])
-            filename, = struct.unpack("%ds" % file_name_length, data[4:4 + file_name_length])
-            filename = filename.decode("utf8")
-            t = threading.Thread(target=download, args=((sock, self.client_address), filename))
-            t.start()
-        if packet_code == PACKET_CODE["ack"]:
-            id, = struct.unpack("I", data[2:6])
-            mark_acked(self.client_address, id)
-            print("[ACKED] %d" % id)
-        if packet_code == PACKET_CODE["write"] or packet_code == PACKET_CODE["data"]:
-            on_file_piece_uploading((sock, self.client_address), data)
-        if packet_code == PACKET_CODE["list"]:
-            list_files((sock, self.client_address))
-        # except Exception as e:
-        #     err_hook((sock,self.client_address),e)
+        try:
+            packet_code, = struct.unpack("H", data[:2])
+            if packet_code not in PACKET_CODE.values():
+                raise Exception("接受到代码  %s命令不存在" % (type(packet_code)), PACKET_CODE.values())
+            if packet_code == PACKET_CODE["read"]:
+                file_name_length, = struct.unpack("H", data[2:4])
+                filename, = struct.unpack("%ds" % file_name_length, data[4:4 + file_name_length])
+                filename = filename.decode("utf8")
+                t = threading.Thread(target=download, args=((sock, self.client_address), filename))
+                t.start()
+            if packet_code == PACKET_CODE["ack"]:
+                id, = struct.unpack("I", data[2:6])
+                mark_acked(self.client_address, id)
+                print("[ACKED] %d" % id)
+            if packet_code == PACKET_CODE["write"] or packet_code == PACKET_CODE["data"]:
+                on_file_piece_uploading((sock, self.client_address), data)
+            if packet_code == PACKET_CODE["list"]:
+                list_files((sock, self.client_address))
+        except Exception as e:
+            err_hook((sock,self.client_address),e)
 
 
 if __name__ == '__main__':
