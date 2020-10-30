@@ -47,15 +47,18 @@ def _build_err_packet(e: Exception):
 
 
 def download(c: socket, *args):
-    if len(args) != 1:
+    if len(args) ==1:
+        raise Exception("需提供写入本地的文件名")
+    if len(args) != 2:
         raise Exception("参数长度不对劲")
     filename = args[0]
+    localfilename = args[1]
     c.send(_build_rrq_packet(filename))
     data = c.recv(512)
     packet_code, = struct.unpack("1H", data[:2])
     if packet_code != (PACKET_CODE["ack"]):
         raise Exception("下载请求未接受到对应ACK,接收到：", data.decode("utf8"))
-    with open(filename, "wb") as f:
+    with open(localfilename, "wb") as f:
         while True:
             data = c.recv(512)
             packet_code, = struct.unpack("1H", data[:2])
