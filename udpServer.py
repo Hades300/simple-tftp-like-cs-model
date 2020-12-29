@@ -11,8 +11,9 @@ GUEST_ACK = {}
 GUEST_UPLOADING = {}
 
 TIME_OUT = 2
-MTU = 8192-20-8
+MTU = 8192 - 20 - 8
 MDL = MTU - 6
+
 
 def guest_add(host: (str, int)):
     GUEST_LIST.append(host)
@@ -72,7 +73,7 @@ def on_file_piece_uploading(client: (socket.socket, (str, int)), data: bytes):
     sock.sendto(_build_ack_packet(id), addr)
     content = data[6:]
     filename = GUEST_UPLOADING[addr]
-    filename = os.path.join(FILE_DIR,filename)
+    filename = os.path.join(FILE_DIR, filename)
     if len(content) != MDL:
         with open(filename, "ab") as f:
             f.write(content)
@@ -149,7 +150,7 @@ CMD_CODE = {
 
 def err_hook(request: (socket.socket, (str, int)), e: Exception):
     sock, addr = request
-    sock.sendto(repr(e).encode("utf8"),addr)
+    sock.sendto(repr(e).encode("utf8"), addr)
 
 
 def _build_ack_packet(id: int):
@@ -201,7 +202,7 @@ class MyUdpHandler(socketserver.BaseRequestHandler):
             if packet_code == PACKET_CODE["list"]:
                 list_files((sock, self.client_address))
         except Exception as e:
-            err_hook((sock,self.client_address),e)
+            err_hook((sock, self.client_address), e)
 
 
 if __name__ == '__main__':
