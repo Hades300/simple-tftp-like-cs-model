@@ -1,4 +1,7 @@
+import selectors
 import socket
+import socketserver
+import sys
 import threading
 import time
 import struct
@@ -159,7 +162,6 @@ class MultiThreadServer():
             t = threading.Thread(target=self.handle, args=(client,))
             t.start()
 
-
     def handle(self, client):
         while True:
             try:
@@ -168,22 +170,72 @@ class MultiThreadServer():
                 print(e.with_traceback())
                 break
 
-# class multiPlexingIOServer:
-#     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#     server.settimeout(60)
-#
-#     def serve(self, host='127.0.0.1', port=4455):
-#         self.server.bind((host, port))  # 绑定端口
-#         self.server.listen(1000)  # 监听
+
+class MyHandler(socketserver.BaseRequestHandler):
+    def handle(self) -> None:
+        while True:
+            try:
+                packet_handle(self.request)
+            except Exception as e:
+                print(e.with_traceback())
+                break
 
 
+class MultiplexingServer:
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.settimeout(60)
 
+    def __init__(self, host='127.0.0.1', port=4455):
+        self.server.bind((host, port))
+        self.server.listen(100)
+        self.server.setblocking(False)
 
+        # 使用默认选择器
+        self.selector = selectors.DefaultSelector()
+        self.selector.register(fileobj=self.server,
+                               events=selectors.EVENT_READ,
+                               data=self.on_accept)
+
+        # Keeps track of the peers currently connected. Maps socket fd to
+        # peer name.
+        # self.current_peers = {}
+
+    def on_accept(self, sock):
+        # This is a handler for the server which is now listening, so we
+        # know it's ready to accept a new connection.
+        conn, _ = self.server.accept()
+        self.selector.register(conn, events=selectors.EVENT_READ, data=self.handle)
+
+    def handle(self, client):
+        try:
+            packet_handle(client)
+        except Exception as e:
+            tb = sys.exc_info()[2]
+            print(e.with_traceback(tb))
+
+    def serve(self):
+        while True:
+            events = self.selector.select(timeout=1)
+            # For each new event, dispatch to its handler
+            for key, mask in events:
+                print(key.data,key.fileobj)
+                handler = key.data
+                handler(key.fileobj)
 
 
 if __name__ == "__main__":
     os.chdir(FILE_DIR)
     # s1 = BlockIOServer()
     # s1.serve()
-    s2 = MultiThreadServer()
-    s2.serve()
+
+    # s2 = MultiThreadServer()
+    # s2.serve()
+
+    s3 = MultiplexingServer()
+    s3.serve()
+
+    # server = socketserver.TCPServer(('127.0.0.1',4455),multiPlexingIOHandler)
+    # server.serve_forever(poll_interval=0.05)
+
+    # server = socketserver.ThreadingTCPServer(('127.0.0.1', 4455), multiPlexingIOHandler)
+    # server.serve_forever(poll_interval=0.05)
