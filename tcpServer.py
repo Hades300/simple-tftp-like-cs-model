@@ -225,17 +225,22 @@ class MultiplexingServer:
 
 if __name__ == "__main__":
     os.chdir(FILE_DIR)
+    # 阻塞
     # s1 = BlockIOServer()
     # s1.serve()
 
+    # 多线程
     # s2 = MultiThreadServer()
     # s2.serve()
 
+    # 多路复用
     s3 = MultiplexingServer()
     s3.serve()
 
-    # server = socketserver.TCPServer(('127.0.0.1',4455),multiPlexingIOHandler)
+    # 阻塞
+    # server = socketserver.TCPServer(('127.0.0.1',4455),MyHandler)
     # server.serve_forever(poll_interval=0.05)
 
-    # server = socketserver.ThreadingTCPServer(('127.0.0.1', 4455), multiPlexingIOHandler)
+    # 多线程
+    # server = socketserver.ThreadingTCPServer(('127.0.0.1', 4455), MyHandler)
     # server.serve_forever(poll_interval=0.05)
