@@ -143,11 +143,11 @@ class BlockIOServer:
 
     def handle(self, client):
         while True:
-            # try:
-            packet_handle(client)
-            # except Exception as e:
-            #     print(e)
-            #     break
+            try:
+                packet_handle(client)
+            except Exception as e:
+                print(e)
+                break
 
 
 class MultiThreadServer():
@@ -172,16 +172,6 @@ class MultiThreadServer():
                 break
 
 
-class MyHandler(socketserver.BaseRequestHandler):
-    def handle(self) -> None:
-        while True:
-            try:
-                packet_handle(self.request)
-            except Exception as e:
-                print(e.with_traceback())
-                break
-
-
 class MultiplexingServer:
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.settimeout(60)
@@ -197,13 +187,9 @@ class MultiplexingServer:
                                events=selectors.EVENT_READ,
                                data=self.on_accept)
 
-        # Keeps track of the peers currently connected. Maps socket fd to
-        # peer name.
-        # self.current_peers = {}
-
     def on_accept(self, sock):
-        # This is a handler for the server which is now listening, so we
-        # know it's ready to accept a new connection.
+        # 这是给正处于监听状态套接字的handler
+        # 负责处理 新连接
         conn, _ = self.server.accept()
         self.selector.register(conn, events=selectors.EVENT_READ, data=self.handle)
 
@@ -219,7 +205,7 @@ class MultiplexingServer:
             events = self.selector.select(timeout=1)
             # For each new event, dispatch to its handler
             for key, mask in events:
-                print(key.data,key.fileobj)
+                print(key.data, key.fileobj)
                 handler = key.data
                 handler(key.fileobj)
 
@@ -240,10 +226,6 @@ class AsyncIOServer:
                                events=selectors.EVENT_READ,
                                data=self.on_accept)
 
-        # Keeps track of the peers currently connected. Maps socket fd to
-        # peer name.
-        # self.current_peers = {}
-
     async def on_accept(self, sock):
         # This is a handler for the server which is now listening, so we
         # know it's ready to accept a new connection.
@@ -262,18 +244,15 @@ class AsyncIOServer:
             events = self.selector.select(timeout=1)
             # For each new event, dispatch to its handler
             for key, mask in events:
-                print(key.data,key.fileobj)
+                print(key.data, key.fileobj)
                 handler = key.data
                 asyncio.run(handler(key.fileobj))
-
-
-
 
 
 if __name__ == "__main__":
     os.chdir(FILE_DIR)
     # 阻塞
-    # s1 = BlockIOServer()
+    # s1 = BlockIOServer()å
     # s1.serve()
 
     # 多线程
@@ -287,13 +266,3 @@ if __name__ == "__main__":
     # asyncio 库
     s4 = AsyncIOServer()
     s4.serve()
-
-
-
-    # 阻塞
-    # server = socketserver.TCPServer(('127.0.0.1',4455),MyHandler)
-    # server.serve_forever(poll_interval=0.05)
-
-    # 多线程
-    # server = socketserver.ThreadingTCPServer(('127.0.0.1', 4455), MyHandler)
-    # server.serve_forever(poll_interval=0.05)

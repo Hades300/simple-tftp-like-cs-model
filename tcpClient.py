@@ -66,18 +66,18 @@ class Client:
             self.client.send(packet)
         print(f"[+] file {filename} uploaded")
 
-    def download(self, filename):
-        packet = _build_rrq_packet(filename)
+    def download(self, target,localname):
+        packet = _build_rrq_packet(target)
         self.client.send(packet)
-        with open(filename, "wb") as f:
+        with open(localname, "wb") as f:
             length = DATA_PACKET_PIECE_LEN
             while length == DATA_PACKET_PIECE_LEN:
                 data = self.client.recv(6)
                 _, length = struct.unpack("=1H1I", data)
                 fileData = self.client.recv(length)
-                print(f"[+] DEBUG 文件 {filename} 收到 {len(fileData)}字节" )
+                print(f"[+] DEBUG 文件 {target} 收到 {len(fileData)}字节")
                 f.write(fileData)
-        print(f"[+] file {filename} downloaded")
+        print(f"[+] file {target} downloaded")
 
     def list(self):
         packet = _build_lrq_packet()
@@ -93,7 +93,10 @@ class Client:
             raise Exception("缺少命令")
         baseCmd = cmd[0].lower()
         if baseCmd == "read":
-            self.download(cmd[1])
+            if len(cmd) != 3:
+                raise Exception("缺少命令")
+            print(cmd)
+            self.download(cmd[1],cmd[2])
         if baseCmd == "write":
             if len(cmd) != 3:
                 raise Exception("缺少命令")
@@ -105,7 +108,10 @@ class Client:
         self.connect()
         while True:
             command = input("Guest>").split()
-            self.execute(command)
+            try:
+                self.execute(command)
+            except Exception as e:
+                print("[+] Error",e)
 
 
 if __name__=="__main__":
