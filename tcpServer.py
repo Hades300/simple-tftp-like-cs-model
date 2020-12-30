@@ -252,7 +252,7 @@ class AsyncIOServer:
 if __name__ == "__main__":
     os.chdir(FILE_DIR)
     # 阻塞
-    # s1 = BlockIOServer()å
+    # s1 = BlockIOServer()
     # s1.serve()
 
     # 多线程

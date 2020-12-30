@@ -4,6 +4,9 @@
 ```bash
 python3 udpClient.py
 ```
+```bash
+python3 tcpClient.py
+```
 ```
 list
 ```
@@ -14,7 +17,13 @@ read [remote-file-name] [local-file-name]
 write [local-file-name] [remote-file-name]
 ```
 
-## 设计考虑
+## UDP设计考虑
+
+-[X] 实现了超时重传
+-[X] 实现了数据包确认(ack)
+-[X] 数据分片大小可修改（是网络情况而定）
+-[X] 服务端本身使用多线程+多路复用
+
 
 ### 最长数据报长度
 
@@ -74,3 +83,8 @@ write [local-file-name] [remote-file-name]
 - CLIENT <--(DATA    )--- Server(最后一个不满长的Data 标志着结束)
 
 万一最后一个刚好是满长的呢？TFTP中会发送一个0 bytes Payload的Data Packet来标志下载的结束。我太懒了没写。
+
+
+## TCP设计考虑
+
+协议本身实现了可靠传输，因此没有ack机制。
