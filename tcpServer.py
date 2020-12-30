@@ -1,3 +1,4 @@
+import asyncio
 import selectors
 import socket
 import socketserver
@@ -223,6 +224,52 @@ class MultiplexingServer:
                 handler(key.fileobj)
 
 
+class AsyncIOServer:
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.settimeout(60)
+
+    def __init__(self, host='127.0.0.1', port=4455):
+        self.server.bind((host, port))
+        self.server.listen(100)
+        self.server.setblocking(False)
+        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        # 使用默认选择器
+        self.selector = selectors.DefaultSelector()
+        self.selector.register(fileobj=self.server,
+                               events=selectors.EVENT_READ,
+                               data=self.on_accept)
+
+        # Keeps track of the peers currently connected. Maps socket fd to
+        # peer name.
+        # self.current_peers = {}
+
+    async def on_accept(self, sock):
+        # This is a handler for the server which is now listening, so we
+        # know it's ready to accept a new connection.
+        conn, _ = self.server.accept()
+        self.selector.register(conn, events=selectors.EVENT_READ, data=self.handle)
+
+    async def handle(self, client):
+        try:
+            packet_handle(client)
+        except Exception as e:
+            tb = sys.exc_info()[2]
+            print(e.with_traceback(tb))
+
+    def serve(self):
+        while True:
+            events = self.selector.select(timeout=1)
+            # For each new event, dispatch to its handler
+            for key, mask in events:
+                print(key.data,key.fileobj)
+                handler = key.data
+                asyncio.run(handler(key.fileobj))
+
+
+
+
+
 if __name__ == "__main__":
     os.chdir(FILE_DIR)
     # 阻塞
@@ -234,8 +281,14 @@ if __name__ == "__main__":
     # s2.serve()
 
     # 多路复用
-    s3 = MultiplexingServer()
-    s3.serve()
+    # s3 = MultiplexingServer()
+    # s3.serve()
+
+    # asyncio 库
+    s4 = AsyncIOServer()
+    s4.serve()
+
+
 
     # 阻塞
     # server = socketserver.TCPServer(('127.0.0.1',4455),MyHandler)
